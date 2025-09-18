@@ -11,13 +11,14 @@ const ShortcutHints: React.FC = () => {
       { keys: 'Tab', desc: '開/關所有面板' },
       { keys: 'N', desc: '新增便籤' },
       { keys: 'A', desc: '新增箭頭' },
-      { keys: 'I', desc: '新增圖片' },
+      { keys: 'I', desc: '新增Inpaint' },
+      { keys: 'O', desc: '新增Outpaint' },
       { keys: 'P', desc: '新增空圖層' },
       { keys: 'D', desc: '繪圖' },
       { keys: 'C', desc: '攝像頭' },
       { keys: 'X', desc: '比較物件', highlight: true },
       { keys: 'Alt + I', desc: '靈感提示' },
-      { keys: 'Alt + O', desc: '自動優化' },
+      { keys: 'Alt + P', desc: '自動優化' },
   ];
 
 

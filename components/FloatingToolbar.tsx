@@ -184,7 +184,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   const isImage = element?.type === 'image';
   const isDrawing = element?.type === 'drawing';
   const isArrow = element?.type === 'arrow';
-  const isPlaceholder = element?.type === 'placeholder';
+  const isPlaceholder = element?.type === 'placeholder' || element?.type === 'inpaintPlaceholder' || element?.type === 'outpaintPlaceholder';
   const isImageCompare = element?.type === 'imageCompare';
   const canEditAI = isImage || isDrawing;
   const canInpaint = isImage || isDrawing || (isImageCompare && (element as ImageCompareElement).wasInpainted);
@@ -416,7 +416,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                         </select>
                         <div className="flex items-center gap-2 pt-2 mt-2 border-t border-slate-700/50">
                             <IconButton title="靈感提示 (Alt+I)" onClick={() => onNoteInspiration(element.id)}><Lightbulb size={18}/></IconButton>
-                            <IconButton title="自動優化 (Alt+O)" onClick={() => onNoteOptimization(element.id)}><Sparkles size={18}/></IconButton>
+                            <IconButton title="自動優化 (Alt+P)" onClick={() => onNoteOptimization(element.id)}><Sparkles size={18}/></IconButton>
                             <button 
                                 onClick={() => onNoteGenerate(element.id)}
                                 disabled={isGenerating}
@@ -462,7 +462,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                                     {element && canEditAI && (
                                         <>
                                             <IconButton title="靈感提示 (Alt+I)" onClick={() => onRequestInspiration(element.id)}><Lightbulb size={18}/></IconButton>
-                                            <IconButton title="優化提示 (Alt+O)" onClick={() => onOptimizeSingleElementPrompt(element.id)}><Sparkles size={18}/></IconButton>
+                                            <IconButton title="優化提示 (Alt+P)" onClick={() => onOptimizeSingleElementPrompt(element.id)}><Sparkles size={18}/></IconButton>
                                             <IconButton title="拷貝提示" onClick={handleCopyPrompt}><ClipboardCopy size={18} /></IconButton>
                                             <IconButton title="清除提示" onClick={() => element && onPromptsChange(p => ({...p, [element.id]: ''}))}><Eraser size={18} /></IconButton>
                                         </>
@@ -470,7 +470,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                                     {isGroup && isLocked && groupId && (
                                         <>
                                          <IconButton title="群組靈感提示 (Alt+I)" onClick={() => onRequestGroupInspiration(groupId)}><Lightbulb size={18}/></IconButton>
-                                         <IconButton title="優化提示 (Alt+O)" onClick={() => onOptimizeGroupPrompt(groupId)}><Sparkles size={18}/></IconButton>
+                                         <IconButton title="優化提示 (Alt+P)" onClick={() => onOptimizeGroupPrompt(groupId)}><Sparkles size={18}/></IconButton>
                                          <IconButton title="拷貝提示" onClick={handleCopyPrompt}><ClipboardCopy size={18} /></IconButton>
                                          <IconButton title="清除提示" onClick={() => groupId && onPromptsChange(p => ({...p, [groupId]: ''}))}><Eraser size={18} /></IconButton>
                                         </>

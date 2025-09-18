@@ -87,7 +87,6 @@ const PlaylistManager: React.FC<{
                     <option value="所有音樂">所有音樂</option>
                     {playlists.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
                 </select>
-                {/* FIX: Added a button to allow saving the current track list as a playlist. */}
                 <button onClick={onSaveCurrentTracksAsPlaylist} title="將目前列表儲存為播放清單" className="p-1.5 bg-slate-700 hover:bg-slate-600 rounded-md"><Save size={16}/></button>
                 <button onClick={onExportPlaylists} title="匯出音樂庫" className="p-1.5 bg-slate-700 hover:bg-slate-600 rounded-md"><Download size={16}/></button>
                 <button onClick={() => importRef.current?.click()} title="匯入音樂庫" className="p-1.5 bg-slate-700 hover:bg-slate-600 rounded-md"><Upload size={16}/></button>

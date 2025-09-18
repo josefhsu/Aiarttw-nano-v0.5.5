@@ -1,9 +1,9 @@
-
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import type { CanvasElement, Point, Viewport, NoteElement, ImageElement, DrawingElement, ArrowElement, PlaceholderElement, ImageCompareElement } from '../types';
+import type { CanvasElement, Point, Viewport, NoteElement, ImageElement, DrawingElement, ArrowElement, PlaceholderElement, ImageCompareElement, InpaintPlaceholderElement, OutpaintPlaceholderElement } from '../types';
 import { getElementCenter, rotatePoint, gcd } from '../utils';
-import { ImagePlus } from 'lucide-react';
 import { ImageCompare } from './ImageCompare';
+import { ImageActionPlaceholder } from './ImageActionPlaceholder';
+import { Brush, Crop, Frame } from 'lucide-react';
 
 export type ScreenToCanvasFn = (p: Point) => Point;
 
@@ -18,12 +18,15 @@ interface TransformableElementProps {
     onCommitHistory: (updates: { id: string, data: Partial<CanvasElement> }[]) => void;
     onAltDragDuplicate: (elementsToCreate: Omit<CanvasElement, 'id' | 'zIndex'>[], revertUpdates: { id: string, data: Partial<CanvasElement> }[]) => void;
     onReplacePlaceholder: (placeholderId: string, file: File) => void;
+    onReplacePlaceholderWithImageAndEdit: (placeholderId: string, file: File, editType: 'inpaint' | 'outpaint') => void;
     onDoubleClick: () => void;
     lockedGroupIds: Set<string>;
     screenToCanvas: ScreenToCanvasFn;
     selectedElementIds: string[];
     onTriggerCameraForCompare: (elementId: string, side: 'before' | 'after') => void;
     onTriggerPasteForCompare: (elementId: string, side: 'before' | 'after') => void;
+    onFillPlaceholderFromCamera: (placeholderId: string) => void;
+    onFillPlaceholderFromPaste: (placeholderId: string) => void;
     onStartAltDrag: (elements: CanvasElement[]) => void;
     onEndAltDrag: () => void;
 }
@@ -32,8 +35,8 @@ type TransformMode = 'translate' | 'resize' | 'rotate' | 'resize-arrow-start' | 
 type ResizeHandle = 'tl' | 'tr' | 'bl' | 'br';
 
 export const TransformableElement: React.FC<TransformableElementProps> = ({
-    element, elements, viewport, isSelected, isDeepSelected, onSelect, onUpdateElements, onCommitHistory, onAltDragDuplicate, onReplacePlaceholder, onDoubleClick, lockedGroupIds, screenToCanvas,
-    selectedElementIds, onTriggerCameraForCompare, onTriggerPasteForCompare, onStartAltDrag, onEndAltDrag
+    element, elements, viewport, isSelected, isDeepSelected, onSelect, onUpdateElements, onCommitHistory, onAltDragDuplicate, onReplacePlaceholder, onReplacePlaceholderWithImageAndEdit, onDoubleClick, lockedGroupIds, screenToCanvas,
+    selectedElementIds, onTriggerCameraForCompare, onTriggerPasteForCompare, onFillPlaceholderFromCamera, onFillPlaceholderFromPaste, onStartAltDrag, onEndAltDrag
 }) => {
     const [mode, setMode] = useState<TransformMode>(null);
     const [activeHandle, setActiveHandle] = useState<ResizeHandle | null>(null);
@@ -46,11 +49,12 @@ export const TransformableElement: React.FC<TransformableElementProps> = ({
     } | null>(null);
 
     const isLocked = element.groupId && lockedGroupIds.has(element.groupId);
+    const isAnyPlaceholder = element.type === 'placeholder' || element.type === 'inpaintPlaceholder' || element.type === 'outpaintPlaceholder';
 
     const handleMouseDown = (e: React.MouseEvent) => {
         e.stopPropagation();
 
-        if (element.type === 'placeholder' || (element.type === 'imageCompare' && (!element.srcBefore || !element.srcAfter))) {
+        if (isAnyPlaceholder || (element.type === 'imageCompare' && (!element.srcBefore || !element.srcAfter))) {
             onSelect([element.id], e.shiftKey || e.metaKey || e.ctrlKey);
         } else {
              onSelect([element.id], e.shiftKey || e.metaKey || e.ctrlKey);
@@ -130,7 +134,7 @@ export const TransformableElement: React.FC<TransformableElementProps> = ({
             let newY = startElement.position.y;
             
             let maintainAspectRatio = true;
-            if (element.type === 'note' || element.type === 'placeholder' || element.type === 'imageCompare') {
+            if (element.type === 'note' || isAnyPlaceholder || element.type === 'imageCompare') {
                 maintainAspectRatio = false;
             }
 
@@ -187,7 +191,7 @@ export const TransformableElement: React.FC<TransformableElementProps> = ({
             
             onUpdateElements([{ id: element.id, data: { position: start, width: newWidth, rotation: newRotation } }])
         }
-    }, [mode, activeHandle, viewport.zoom, element.id, onUpdateElements, screenToCanvas]);
+    }, [mode, activeHandle, viewport.zoom, element.id, element.type, isAnyPlaceholder, onUpdateElements, screenToCanvas]);
 
     const handleMouseUp = useCallback(() => {
         if (startDragDetails.current?.isAltDrag) {
@@ -244,7 +248,21 @@ export const TransformableElement: React.FC<TransformableElementProps> = ({
             case 'image': return <ImageContent element={element} />;
             case 'drawing': return <DrawingContent element={element} />;
             case 'arrow': return <ArrowContent element={element} />;
-            case 'placeholder': return <PlaceholderContent onImageSet={(file) => onReplacePlaceholder(element.id, file)} />;
+            case 'placeholder': return <ImageActionPlaceholder
+                icon={<Frame size={32} />}
+                title="空圖層"
+                description="拖放圖片至此或點擊上傳"
+                onImageSet={(file) => onReplacePlaceholder(element.id, file)} />;
+            case 'inpaintPlaceholder': return <ImageActionPlaceholder
+                icon={<Brush size={32} />}
+                title="空Inpaint（修飾）"
+                description="拖放圖片以進行局部重繪"
+                onImageSet={(file) => onReplacePlaceholderWithImageAndEdit(element.id, file, 'inpaint')} />;
+            case 'outpaintPlaceholder': return <ImageActionPlaceholder
+                icon={<Crop size={32} />}
+                title="空Outpaint（擴圖）"
+                description="拖放圖片以進行擴展"
+                onImageSet={(file) => onReplacePlaceholderWithImageAndEdit(element.id, file, 'outpaint')} />;
             case 'imageCompare': return <ImageCompare 
                 element={element}
                 onUpdateElements={onUpdateElements}
@@ -313,7 +331,7 @@ export const TransformableElement: React.FC<TransformableElementProps> = ({
         height: element.height,
         transform: `rotate(${element.rotation}deg)`,
         zIndex: element.zIndex,
-        cursor: element.type === 'placeholder' || (element.type === 'imageCompare' && (!element.srcBefore || !element.srcAfter))
+        cursor: isAnyPlaceholder || (element.type === 'imageCompare' && (!element.srcBefore || !element.srcAfter))
             ? 'default' 
             : (isLocked && !isDeepSelected) ? 'grab' : isSelected ? 'move' : 'pointer',
         transformOrigin: element.type === 'arrow' ? 'left center' : 'center center',
@@ -364,10 +382,10 @@ export const TransformableElement: React.FC<TransformableElementProps> = ({
             data-element-id={element.id}
             data-group-id={element.groupId}
             style={elementStyle}
-            onMouseDown={ (element.type === 'placeholder' || (element.type === 'imageCompare' && (!element.srcBefore || !element.srcAfter))) ? undefined : handleMouseDown}
+            onMouseDown={ (isAnyPlaceholder || (element.type === 'imageCompare' && (!element.srcBefore || !element.srcAfter))) ? undefined : handleMouseDown}
             onDoubleClick={onDoubleClick}
         >
-            <div className="relative w-full h-full" onMouseDown={(element.type === 'placeholder' || (element.type === 'imageCompare' && (!element.srcBefore || !element.srcAfter))) ? handleMouseDown : undefined}>
+            <div className="relative w-full h-full" onMouseDown={(isAnyPlaceholder || (element.type === 'imageCompare' && (!element.srcBefore || !element.srcAfter))) ? handleMouseDown : undefined}>
                 {renderElementContent()}
                 {renderAspectRatio()}
             </div>
@@ -493,71 +511,6 @@ const NoteContent: React.FC<{ element: NoteElement, onUpdate: TransformableEleme
                 }
                 return <React.Fragment key={`text-${index}`}>{part}</React.Fragment>;
             })}
-        </div>
-    );
-};
-
-const PlaceholderContent: React.FC<{ onImageSet: (file: File) => void }> = ({ onImageSet }) => {
-    const [isDraggingOver, setIsDraggingOver] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDraggingOver(true);
-    };
-
-    const handleDragLeave = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDraggingOver(false);
-    };
-
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDraggingOver(false);
-        if (e.dataTransfer.files?.length) {
-            const file = e.dataTransfer.files[0];
-            if (file && file.type.startsWith('image/')) {
-                onImageSet(file);
-            }
-        }
-    };
-    
-    const handleClick = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        fileInputRef.current?.click();
-    };
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            onImageSet(file);
-        }
-    };
-
-    return (
-        <div 
-            className={`w-full h-full border-2 border-dashed rounded-lg flex items-center justify-center text-gray-500 transition-colors cursor-pointer ${isDraggingOver ? 'border-cyan-400 bg-cyan-900/30' : 'border-gray-600 hover:border-gray-400'}`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            onClick={handleClick}
-            onMouseDown={(e) => e.stopPropagation()}
-        >
-            <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
-                accept="image/*" 
-                onChange={handleFileChange}
-            />
-            <div className="text-center pointer-events-none p-2">
-                <ImagePlus size={32} className="mx-auto mb-2" />
-                <p className="font-semibold">空圖層</p>
-                <p className="text-xs mt-1">拖放圖片至此或點擊上傳</p>
-            </div>
         </div>
     );
 };

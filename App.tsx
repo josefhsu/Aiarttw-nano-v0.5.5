@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { GoogleGenAI, Modality, Type } from "@google/genai";
@@ -18,13 +19,15 @@ import { InspirationPanel } from './components/InspirationPanel';
 import { ShortcutHints } from './components/ShortcutHints';
 import { MusicPlayer } from './components/MusicPlayer';
 import { LyricsDisplay } from './components/LyricsDisplay';
-import type { CanvasElement, Viewport, Point, NoteElement, ImageElement, DrawingElement, ArrowElement, Connection, PlaceholderElement, BackupData, ExportedTrack, ImageCompareElement } from './types';
+// FIX: Add InpaintPlaceholderElement and OutpaintPlaceholderElement to import
+import type { CanvasElement, Viewport, Point, NoteElement, ImageElement, DrawingElement, ArrowElement, Connection, PlaceholderElement, BackupData, ExportedTrack, ImageCompareElement, InpaintPlaceholderElement, OutpaintPlaceholderElement } from './types';
 import { ULTIMATE_EDITING_GUIDE, ASPECT_RATIO_OPTIONS, RANDOM_GRADIENTS } from './constants';
 // FIX: Update import path to constants1 for Night City related constants
 import { NCL_OPTIONS, NIGHT_CITY_WEAPONS, NIGHT_CITY_VEHICLES, NIGHT_CITY_COMPANIONS, NIGHT_CITY_MISSIONS, NIGHT_CITY_LEGENDS, NIGHT_CITY_COMPANION_PROMPTS } from './constants1';
 import { fileToBase64, base64ToFile, dataUrlToBlob, getElementsBounds, createGrayImage, correctImageAspectRatio, calculateNoteHeight, addTrackToDB, getAllTracksFromDB, clearAllTracksFromDB, savePlaylistToDB, getPlaylistsFromDB, getTrackFromDB, updateTrackLrcInDB, parseLRC, ParsedLrcLine, deleteTrackFromDB, removeTrackFromPlaylistInDB } from './utils';
 import type { Area } from 'react-easy-crop';
 
+// FIX: Add overloads for inpaint and outpaint placeholders
 type AddElementFn = {
     (element: Omit<NoteElement, 'id' | 'zIndex'>, sourcePrompt?: string): void;
     (element: Omit<ImageElement, 'id' | 'zIndex'>, sourcePrompt?: string): void;
@@ -32,6 +35,8 @@ type AddElementFn = {
     (element: Omit<ArrowElement, 'id' | 'zIndex'>, sourcePrompt?: string): void;
     (element: Omit<PlaceholderElement, 'id' | 'zIndex'>, sourcePrompt?: string): void;
     (element: Omit<ImageCompareElement, 'id' | 'zIndex'>, sourcePrompt?: string): void;
+    (element: Omit<InpaintPlaceholderElement, 'id' | 'zIndex'>, sourcePrompt?: string): void;
+    (element: Omit<OutpaintPlaceholderElement, 'id' | 'zIndex'>, sourcePrompt?: string): void;
 };
 
 const getInitialElements = (): NoteElement[] => {
@@ -852,6 +857,32 @@ export const App: React.FC = () => {
       position: { x: center.x - width / 2, y: center.y - height / 2 },
       width, height, rotation: 0,
     } as Omit<PlaceholderElement, 'id' | 'zIndex'>);
+};
+
+// FIX: Add handler for inpaint placeholder
+const addInpaintPlaceholder = () => {
+    const center = screenToCanvasCoords({ x: canvasSize.width / 2, y: canvasSize.height / 2 });
+    const width = 300;
+    const height = 200;
+    
+    addElement({
+      type: 'inpaintPlaceholder',
+      position: { x: center.x - width / 2, y: center.y - height / 2 },
+      width, height, rotation: 0,
+    } as Omit<InpaintPlaceholderElement, 'id' | 'zIndex'>);
+};
+
+// FIX: Add handler for outpaint placeholder
+const addOutpaintPlaceholder = () => {
+    const center = screenToCanvasCoords({ x: canvasSize.width / 2, y: canvasSize.height / 2 });
+    const width = 300;
+    const height = 200;
+    
+    addElement({
+      type: 'outpaintPlaceholder',
+      position: { x: center.x - width / 2, y: center.y - height / 2 },
+      width, height, rotation: 0,
+    } as Omit<OutpaintPlaceholderElement, 'id' | 'zIndex'>);
 };
 
 const addImageCompare = () => {
@@ -1766,6 +1797,46 @@ const handleFillPlaceholderFromPaste = async (placeholderId: string) => {
     } catch (err) {
         console.error('Failed to paste for placeholder:', err);
         alert('無法從剪貼簿貼上。這可能是瀏覽器安全限制所致。');
+    }
+};
+
+// FIX: Add handler for replacing placeholder and opening edit modal
+const handleReplacePlaceholderAndEdit = async (placeholderId: string, file: File, editType: 'inpaint' | 'outpaint') => {
+    const placeholder = elements.find(el => el.id === placeholderId);
+    if (!placeholder) return;
+
+    try {
+        const base64Str = await fileToBase64(file);
+        const src = `data:${file.type};base64,${base64Str}`;
+        const img = new Image();
+        img.onload = () => {
+            const newImageElement: ImageElement = {
+                id: placeholder.id,
+                type: 'image',
+                position: placeholder.position,
+                width: placeholder.width,
+                height: placeholder.width / (img.width / img.height), // Maintain aspect ratio based on width
+                rotation: placeholder.rotation,
+                zIndex: placeholder.zIndex,
+                groupId: placeholder.groupId,
+                src: src,
+                intrinsicWidth: img.width,
+                intrinsicHeight: img.height,
+            };
+
+            setElements(prev => prev.map(el => el.id === placeholderId ? newImageElement : el));
+            setSelectedElementIds([placeholderId]);
+
+            if (editType === 'inpaint') {
+                setInpaintingElement(newImageElement);
+            } else if (editType === 'outpaint') {
+                setOutpaintingElement(newImageElement);
+            }
+        };
+        img.src = src;
+    } catch (error) {
+        console.error("Failed to load image for placeholder and edit:", error);
+        alert(`無法載入圖片: ${error instanceof Error ? error.message : String(error)}`);
     }
 };
 
@@ -2746,6 +2817,7 @@ ${userPrompt}
         onAddElement={(el) => addElement(el as any)}
         onAltDragDuplicate={handleAltDragDuplicate}
         onReplacePlaceholder={replacePlaceholderWithImage}
+        onReplacePlaceholderWithImageAndEdit={handleReplacePlaceholderAndEdit}
         selectedElementIds={selectedElementIds}
         onSelectElements={handleSelectElements}
         onDoubleClickElement={(id) => {
@@ -2764,6 +2836,8 @@ ${userPrompt}
         isAnimationActive={isAnimationActive}
         onTriggerCameraForCompare={handleTriggerCameraForCompare}
         onTriggerPasteForCompare={handleTriggerPasteForCompare}
+        onFillPlaceholderFromCamera={handleFillPlaceholderFromCamera}
+        onFillPlaceholderFromPaste={handleFillPlaceholderFromPaste}
         ghostElements={ghostElements}
         onStartAltDrag={(els) => setGhostElements(els)}
         onEndAltDrag={() => setGhostElements(null)}
@@ -2808,6 +2882,8 @@ ${userPrompt}
         onAddNote={addNote} onAddImage={addImageFromUpload}
         onAddPlaceholder={addPlaceholder}
         onAddImageCompare={addImageCompare}
+        onAddInpaintPlaceholder={addInpaintPlaceholder}
+        onAddOutpaintPlaceholder={addOutpaintPlaceholder}
         onPaste={handlePasteFromClipboard}
         onDraw={() => setIsDrawing(true)} onCamera={() => setIsTakingPhoto(true)}
         canUndo={canUndo} onUndo={undo} canRedo={canRedo} onRedo={redo}

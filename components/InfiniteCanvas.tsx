@@ -13,6 +13,7 @@ interface InfiniteCanvasProps {
   onAddElement: (element: Omit<ArrowElement, 'id' | 'zIndex'>) => void;
   onAltDragDuplicate: (elementsToCreate: Omit<CanvasElement, 'id' | 'zIndex'>[], revertUpdates: { id: string, data: Partial<CanvasElement> }[]) => void;
   onReplacePlaceholder: (placeholderId: string, file: File) => void;
+  onReplacePlaceholderWithImageAndEdit: (placeholderId: string, file: File, editType: 'inpaint' | 'outpaint') => void;
   selectedElementIds: string[];
   onSelectElements: (ids: string[], additive?: boolean) => void;
   onDoubleClickElement: (elementId: string) => void;
@@ -27,6 +28,8 @@ interface InfiniteCanvasProps {
   isAnimationActive: boolean;
   onTriggerCameraForCompare: (elementId: string, side: 'before' | 'after') => void;
   onTriggerPasteForCompare: (elementId: string, side: 'before' | 'after') => void;
+  onFillPlaceholderFromCamera: (placeholderId: string) => void;
+  onFillPlaceholderFromPaste: (placeholderId: string) => void;
   ghostElements: CanvasElement[] | null;
   onStartAltDrag: (elements: CanvasElement[]) => void;
   onEndAltDrag: () => void;
@@ -37,10 +40,11 @@ const intersects = (rect1: {minX: number, minY: number, maxX: number, maxY: numb
 }
 
 export const InfiniteCanvas = forwardRef<HTMLDivElement, InfiniteCanvasProps>(({
-  elements, viewport, onViewportChange, onUpdateElements, onCommitHistory, onAddElement, onAltDragDuplicate, onReplacePlaceholder,
+  elements, viewport, onViewportChange, onUpdateElements, onCommitHistory, onAddElement, onAltDragDuplicate, onReplacePlaceholder, onReplacePlaceholderWithImageAndEdit,
   selectedElementIds, onSelectElements, onDoubleClickElement, activeTool, onToolChange, isDraggingOver,
   isConnecting, drawingArrow, onDrawingArrowChange, lockedGroupIds, singlySelectedIdInGroup, isAnimationActive,
-  onTriggerCameraForCompare, onTriggerPasteForCompare, ghostElements, onStartAltDrag, onEndAltDrag
+  onTriggerCameraForCompare, onTriggerPasteForCompare, onFillPlaceholderFromCamera, onFillPlaceholderFromPaste,
+  ghostElements, onStartAltDrag, onEndAltDrag
 }, ref) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const backgroundCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -655,12 +659,15 @@ export const InfiniteCanvas = forwardRef<HTMLDivElement, InfiniteCanvasProps>(({
                 onCommitHistory={onCommitHistory}
                 onAltDragDuplicate={onAltDragDuplicate}
                 onReplacePlaceholder={onReplacePlaceholder}
+                onReplacePlaceholderWithImageAndEdit={onReplacePlaceholderWithImageAndEdit}
                 onDoubleClick={() => onDoubleClickElement(element.id)}
                 lockedGroupIds={lockedGroupIds}
                 screenToCanvas={screenToCanvas}
                 selectedElementIds={selectedElementIds}
                 onTriggerCameraForCompare={onTriggerCameraForCompare}
                 onTriggerPasteForCompare={onTriggerPasteForCompare}
+                onFillPlaceholderFromCamera={onFillPlaceholderFromCamera}
+                onFillPlaceholderFromPaste={onFillPlaceholderFromPaste}
                 onStartAltDrag={onStartAltDrag}
                 onEndAltDrag={onEndAltDrag}
               />

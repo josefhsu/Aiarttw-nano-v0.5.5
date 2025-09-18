@@ -17,9 +17,6 @@ const rgbToHex = (r: number, g: number, b: number): string => {
   return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
 };
 
-// FIX: The original code likely had a redeclaration of `s` (e.g., `const s = ...` or `let s = ...`),
-// which caused a "Duplicate identifier 's'" error. `s` is already declared in the line above.
-// The fix is to use assignment instead of declaration.
 const rgbToHsv = (r: number, g: number, b: number): { h: number; s: number; v: number } => {
   r /= 255; g /= 255; b /= 255;
   const max = Math.max(r, g, b), min = Math.min(r, g, b);
@@ -37,9 +34,6 @@ const rgbToHsv = (r: number, g: number, b: number): { h: number; s: number; v: n
   return { h: h * 360, s: s * 100, v: v * 100 };
 };
 
-// FIX: The original code likely had a redeclaration of the `s` parameter (e.g., `let s = s / 100;`),
-// which caused a "Duplicate identifier 's'" error.
-// The fix is to use assignment to the parameter instead of redeclaring it.
 const hsvToRgb = (h: number, s: number, v: number): { r: number; g: number; b: number } => {
   s /= 100; v /= 100;
   let r = 0, g = 0, b = 0;

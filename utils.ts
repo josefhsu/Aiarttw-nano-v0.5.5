@@ -1,4 +1,3 @@
-// FIX: Changed `export type` to `import type` to make the `Area` type available in this module's scope.
 import type { Area } from 'react-easy-crop';
 import type { CanvasElement, Point } from './types';
 import html2canvas from 'html2canvas';

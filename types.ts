@@ -10,7 +10,7 @@ export interface Viewport {
     zoom: number;
 }
 
-export type ElementType = 'note' | 'image' | 'arrow' | 'drawing' | 'placeholder' | 'imageCompare';
+export type ElementType = 'note' | 'image' | 'arrow' | 'drawing' | 'placeholder' | 'imageCompare' | 'inpaintPlaceholder' | 'outpaintPlaceholder';
 
 interface BaseElement {
   id: string;
@@ -52,6 +52,14 @@ export interface PlaceholderElement extends BaseElement {
   type: 'placeholder';
 }
 
+export interface InpaintPlaceholderElement extends BaseElement {
+  type: 'inpaintPlaceholder';
+}
+
+export interface OutpaintPlaceholderElement extends BaseElement {
+  type: 'outpaintPlaceholder';
+}
+
 export interface ImageCompareElement extends BaseElement {
     type: 'imageCompare';
     srcBefore: string;
@@ -65,7 +73,7 @@ export interface ImageCompareElement extends BaseElement {
     inpaintedPrompt?: string;
 }
 
-export type CanvasElement = NoteElement | ImageElement | ArrowElement | DrawingElement | PlaceholderElement | ImageCompareElement;
+export type CanvasElement = NoteElement | ImageElement | ArrowElement | DrawingElement | PlaceholderElement | ImageCompareElement | InpaintPlaceholderElement | OutpaintPlaceholderElement;
 
 export interface Connection {
     id: string;
