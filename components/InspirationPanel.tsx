@@ -1,8 +1,11 @@
+
+
 import React, { useState } from 'react';
 import type { CanvasElement, NoteElement, Point } from '../types';
 import { ChevronDown, Lightbulb, ChevronLeft, ChevronRight } from 'lucide-react';
 import { HOT_APPLICATIONS, PROMPT_MAP, ULTIMATE_EDITING_GUIDE, RANDOM_GRADIENTS } from '../constants';
 // FIX: Correcting import path for constants that were moved from constants1.tsx to constants2.tsx to resolve module export errors.
+import { UNIFIED_DIRECTOR_STYLES } from '../constants2';
 import {
     NCL_OPTIONS,
     NIGHT_CITY_WEAPONS,
@@ -10,9 +13,8 @@ import {
     NIGHT_CITY_COMPANIONS,
     NIGHT_CITY_COMPANION_PROMPTS,
     NIGHT_CITY_MISSIONS,
-    UNIFIED_DIRECTOR_STYLES,
     NIGHT_CITY_LEGENDS
-} from '../constants2';
+} from '../constants1';
 import { calculateNoteHeight } from '../utils';
 
 type AddNoteFn = (element: Omit<NoteElement, 'id' | 'zIndex'>) => void;
@@ -194,8 +196,9 @@ export const InspirationPanel: React.FC<InspirationPanelProps> = ({
         const initialState: Record<string, string> = {};
         Object.keys(allCharOptions).forEach(key => {
             const optionsKey = key as keyof typeof allCharOptions;
-            if (allCharOptions[optionsKey] && allCharOptions[optionsKey].options) {
-               initialState[key] = allCharOptions[optionsKey].options[0];
+            const optionConfig = allCharOptions[optionsKey];
+            if (optionConfig && optionConfig.options) {
+               initialState[key] = optionConfig.options[0];
             }
         });
         return initialState;
@@ -269,7 +272,7 @@ export const InspirationPanel: React.FC<InspirationPanelProps> = ({
     const generateCharacterPrompt = () => {
         const selectedOptions: Record<string, string> = {};
         Object.entries(allCharOptions).forEach(([key, value]) => {
-            const selectedValue = charSettings[key];
+            const selectedValue = charSettings[key as keyof typeof charSettings];
             if (selectedValue && selectedValue !== value.options[0] && selectedValue !== value.label) {
                 selectedOptions[key] = selectedValue;
             }
@@ -366,7 +369,6 @@ export const InspirationPanel: React.FC<InspirationPanelProps> = ({
         const companion = getRandomItem(Object.values(NIGHT_CITY_COMPANIONS).flat());
         const missionOptions = NIGHT_CITY_MISSIONS.flatMap(m => m.options);
         const mission = missionOptions.length > 0 ? getRandomItem(missionOptions) : "a secret operation";
-        // FIX: The data structure for NIGHT_CITY_LEGENDS is nested. We need to flatten it twice to get a single array of scene objects.
         const allScenes = Object.values(NIGHT_CITY_LEGENDS).flatMap(v => Object.values(v) as { name: string; prompt: string }[][]).flat();
         const scene = getRandomItem(allScenes).name;
         const prompt = `**任務場景:** ${scene}\n**角色:** ${character}\n**任務夥伴:** ${companion}\n**武器/載具:** Armed with a ${weapon}, driving a ${vehicle}.\n**幻夢設定:** The mission is to "${mission}".`;
@@ -544,10 +546,9 @@ export const InspirationPanel: React.FC<InspirationPanelProps> = ({
                                 <div key={category} className="inspiration-section cyberpunk-section">
                                     <h3 className="cyberpunk-section-header">{category}</h3>
                                     
+                                    {/* FIX: Cast subcategories to any to bypass TypeScript error on Object.values with an 'unknown' type. */}
                                     <ExpandablePromptList
-                                        // FIX: The `items` prop for `ExpandablePromptList` expects a flat array of prompt objects.
-                                        // The `subcategories` variable is an object of arrays, so we flatten it.
-                                        items={(Object.values(subcategories) as { name: string; prompt: string }[][]).flat()}
+                                        items={(Object.values(subcategories as any) as { name: string; prompt: string }[][]).flat()}
                                         onItemClick={(prompt, replace) => handleNCLPrompt(prompt, 'scenes', replace)}
                                         initialCount={15}
                                         buttonClassName="inspiration-btn-cyberpunk"

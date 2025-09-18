@@ -60,6 +60,9 @@ export interface ImageCompareElement extends BaseElement {
     srcAfter: string;
     intrinsicWidthAfter: number;
     intrinsicHeightAfter: number;
+    wasInpainted?: boolean;
+    maskSrc?: string;
+    inpaintedPrompt?: string;
 }
 
 export type CanvasElement = NoteElement | ImageElement | ArrowElement | DrawingElement | PlaceholderElement | ImageCompareElement;

@@ -9,7 +9,8 @@ import { FloatingToolbar } from './components/FloatingToolbar';
 import { LayersPanel } from './components/LayersPanel';
 import { Navigator } from './components/Navigator';
 import { DrawingModal } from './components/DrawingModal';
-import { CroppingModal } from './components/CroppingModal';
+import { OutpaintingModal } from './components/CroppingModal';
+import { InpaintingModal } from './components/InpaintingModal';
 import { CameraModal } from './components/CameraModal';
 import { ContextMenu, ContextMenuItem } from './components/ContextMenu';
 import { InspirationModal } from './components/InspirationModal';
@@ -19,9 +20,10 @@ import { MusicPlayer } from './components/MusicPlayer';
 import { LyricsDisplay } from './components/LyricsDisplay';
 import type { CanvasElement, Viewport, Point, NoteElement, ImageElement, DrawingElement, ArrowElement, Connection, PlaceholderElement, BackupData, ExportedTrack, ImageCompareElement } from './types';
 import { ULTIMATE_EDITING_GUIDE, ASPECT_RATIO_OPTIONS, RANDOM_GRADIENTS } from './constants';
-// FIX: The constants were moved from constants1.tsx to constants2.tsx and then consolidated. Correcting the import to the right file.
-import { NCL_OPTIONS, NIGHT_CITY_WEAPONS, NIGHT_CITY_VEHICLES, NIGHT_CITY_COMPANIONS, NIGHT_CITY_MISSIONS, NIGHT_CITY_LEGENDS } from './constants2';
+// FIX: Update import path to constants1 for Night City related constants
+import { NCL_OPTIONS, NIGHT_CITY_WEAPONS, NIGHT_CITY_VEHICLES, NIGHT_CITY_COMPANIONS, NIGHT_CITY_MISSIONS, NIGHT_CITY_LEGENDS, NIGHT_CITY_COMPANION_PROMPTS } from './constants1';
 import { fileToBase64, base64ToFile, dataUrlToBlob, getElementsBounds, createGrayImage, correctImageAspectRatio, calculateNoteHeight, addTrackToDB, getAllTracksFromDB, clearAllTracksFromDB, savePlaylistToDB, getPlaylistsFromDB, getTrackFromDB, updateTrackLrcInDB, parseLRC, ParsedLrcLine, deleteTrackFromDB, removeTrackFromPlaylistInDB } from './utils';
+import type { Area } from 'react-easy-crop';
 
 type AddElementFn = {
     (element: Omit<NoteElement, 'id' | 'zIndex'>, sourcePrompt?: string): void;
@@ -103,7 +105,8 @@ export const App: React.FC = () => {
   // Modals and states
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawingToEdit, setDrawingToEdit] = useState<DrawingElement | null>(null);
-  const [croppingElement, setCroppingElement] = useState<ImageElement | DrawingElement | null>(null);
+  const [outpaintingElement, setOutpaintingElement] = useState<ImageElement | DrawingElement | null>(null);
+  const [inpaintingElement, setInpaintingElement] = useState<ImageElement | DrawingElement | ImageCompareElement | null>(null);
   const [isTakingPhoto, setIsTakingPhoto] = useState(false);
   const [placeholderTarget, setPlaceholderTarget] = useState<string | null>(null);
   const [imageCompareTarget, setImageCompareTarget] = useState<{ elementId: string; side: 'before' | 'after' } | null>(null);
@@ -2106,7 +2109,7 @@ const handleFillPlaceholderFromPaste = async (placeholderId: string) => {
         } else if (e.altKey && e.key === 'c' && singleSelected) {
             if (singleSelected.type === 'image' || singleSelected.type === 'drawing') {
                 e.preventDefault();
-                setCroppingElement(singleSelected);
+                setOutpaintingElement(singleSelected);
             }
         } else if (e.altKey && e.key === 'e' && singleSelected) {
             if (singleSelected.type === 'drawing') {
@@ -2578,6 +2581,153 @@ ${userPrompt}
         alert(`情境生成：${directive}\n(此功能仍在開發中)`);
     };
 
+    const handleInpaintGenerate = async (sourceElement: ImageElement | DrawingElement | ImageCompareElement, maskDataUrl: string, prompt: string): Promise<string | null> => {
+        try {
+            // This is a local generating state for the floating toolbar, the modal will have its own
+            setIsGenerating(true); 
+            setGenerationStatus('正在執行 AI Inpainting...');
+    
+            const isReEdit = sourceElement.type === 'imageCompare';
+            const originalSrc = isReEdit ? sourceElement.srcBefore : sourceElement.src;
+            const originalIntrinsicWidth = isReEdit ? sourceElement.intrinsicWidthBefore : (sourceElement as ImageElement).intrinsicWidth;
+            const originalIntrinsicHeight = isReEdit ? sourceElement.intrinsicHeightBefore : (sourceElement as ImageElement).intrinsicHeight;
+
+            const { base64: originalBase64, blob: originalBlob } = await dataUrlToBlob(originalSrc);
+            const { base64: maskBase64, blob: maskBlob } = await dataUrlToBlob(maskDataUrl);
+    
+            const fullPrompt = `You are an expert image editor performing an inpainting task. You are given two images: the original image and a mask image. In the mask image, the colored areas indicate the region to be modified. Your task is to redraw ONLY the masked region based on the user's prompt, seamlessly blending it with the rest of the original image. The unmasked parts of the original image must remain completely unchanged. User's prompt: "${prompt}"`;
+            
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash-image-preview',
+                contents: { parts: [
+                    { inlineData: { data: originalBase64, mimeType: originalBlob.type } },
+                    { inlineData: { data: maskBase64, mimeType: maskBlob.type } },
+                    { text: fullPrompt },
+                ]},
+                config: { responseModalities: [Modality.IMAGE, Modality.TEXT] }
+            });
+
+            const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+            if (!imagePart?.inlineData) throw new Error("AI did not return an image for inpainting.");
+
+            const newSrc = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+            downloadImage(newSrc, `ai-inpainted-${Date.now()}.png`);
+            
+            const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+                const i = new Image();
+                i.onload = () => resolve(i); i.onerror = reject; i.src = newSrc;
+            });
+
+            const compareData = {
+                srcAfter: newSrc,
+                intrinsicWidthAfter: img.width,
+                intrinsicHeightAfter: img.height,
+                wasInpainted: true,
+                maskSrc: maskDataUrl,
+                inpaintedPrompt: prompt,
+            };
+
+            if (isReEdit) {
+                 updateElements([{ id: sourceElement.id, data: compareData }]);
+            } else {
+                 addElement({
+                    type: 'imageCompare',
+                    position: { x: sourceElement.position.x + 20, y: sourceElement.position.y + 20 },
+                    width: sourceElement.width, height: sourceElement.height, rotation: 0,
+                    srcBefore: originalSrc,
+                    intrinsicWidthBefore: originalIntrinsicWidth || sourceElement.width,
+                    intrinsicHeightBefore: originalIntrinsicHeight || sourceElement.height,
+                    ...compareData
+                }, prompt);
+            }
+            return newSrc;
+        } catch (error) {
+            console.error("AI Inpainting Error:", error);
+            alert(`An error occurred during AI inpainting: ${error instanceof Error ? error.message : String(error)}`);
+            return null;
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handleAIOutpaint = async (element: ImageElement | DrawingElement, croppedAreaPixels: Area, outputAspectRatio: number, prompt: string) => {
+        try {
+            setIsGenerating(true);
+            setGenerationStatus('正在執行 AI Outpainting...');
+
+            // Create a new canvas with the desired output aspect ratio
+            const outputWidth = Math.max(croppedAreaPixels.width, (croppedAreaPixels.height * outputAspectRatio));
+            const outputHeight = outputWidth / outputAspectRatio;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = outputWidth;
+            canvas.height = outputHeight;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error("Could not create canvas context");
+
+            // Fill with grey
+            ctx.fillStyle = '#808080';
+            ctx.fillRect(0, 0, outputWidth, outputHeight);
+            
+            const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+                const i = new Image();
+                i.crossOrigin = 'anonymous';
+                i.onload = () => resolve(i); i.onerror = reject; i.src = element.src;
+            });
+            
+            // Draw the cropped portion of the original image into the center of the new canvas
+            const dx = (outputWidth - croppedAreaPixels.width) / 2;
+            const dy = (outputHeight - croppedAreaPixels.height) / 2;
+            
+            ctx.drawImage(img, croppedAreaPixels.x, croppedAreaPixels.y, croppedAreaPixels.width, croppedAreaPixels.height, dx, dy, croppedAreaPixels.width, croppedAreaPixels.height);
+
+            const compositeImageB64 = canvas.toDataURL('image/png').split(',')[1];
+
+            const fullPrompt = `You are an expert image editor performing an outpainting task. The user wants to extend the central image into the surrounding grey areas. Fill ONLY the grey areas based on the content of the central image and the user's prompt. The original image content must remain perfectly intact. The final result should be a seamless, cohesive image. User's prompt: "${prompt}"`;
+
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash-image-preview',
+                contents: { parts: [
+                    { inlineData: { data: compositeImageB64, mimeType: 'image/png' } },
+                    { text: fullPrompt }
+                ]},
+                config: { responseModalities: [Modality.IMAGE, Modality.TEXT] }
+            });
+
+            const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+            if (!imagePart?.inlineData) throw new Error("AI did not return an image for outpainting.");
+
+            const newSrc = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+            downloadImage(newSrc, `ai-outpainted-${Date.now()}.png`);
+            
+            const newImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+                const i = new Image();
+                i.onload = () => resolve(i); i.onerror = reject; i.src = newSrc;
+            });
+
+            addElement({
+                type: 'imageCompare',
+                position: { x: element.position.x, y: element.position.y },
+                width: element.width * 1.2, height: (element.width * 1.2) / outputAspectRatio, rotation: 0,
+                srcBefore: element.src,
+                intrinsicWidthBefore: (element as ImageElement).intrinsicWidth || element.width,
+                intrinsicHeightBefore: (element as ImageElement).intrinsicHeight || element.height,
+                srcAfter: newSrc,
+                intrinsicWidthAfter: newImg.width,
+                intrinsicHeightAfter: newImg.height,
+            }, prompt);
+
+        } catch (error) {
+            console.error("AI Outpainting Error:", error);
+            alert(`An error occurred during AI outpainting: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+
   return (
     <div 
         className="w-screen h-screen bg-black text-white cyber-grid-background canvas-glow-container"
@@ -2601,7 +2751,7 @@ ${userPrompt}
         onDoubleClickElement={(id) => {
             const el = elements.find(e => e.id === id);
             if (el?.type === 'drawing') setDrawingToEdit(el);
-            if (el?.type === 'image') setCroppingElement(el);
+            if (el?.type === 'image') setOutpaintingElement(el);
         }}
         activeTool={activeTool}
         onToolChange={setActiveTool}
@@ -2678,7 +2828,8 @@ ${userPrompt}
             onSendToBack={() => reorderElements('back', selectedElementIds)}
             onUpdateElements={(updates, addToHistory) => updateElements(updates, addToHistory)}
             onCommitHistory={handleCommitHistory}
-            onCrop={() => setCroppingElement(selectedElements[0] as ImageElement | DrawingElement)}
+            onOutpaint={() => setOutpaintingElement(selectedElements[0] as ImageElement | DrawingElement)}
+            onInpaint={() => setInpaintingElement(selectedElements[0] as ImageElement | DrawingElement | ImageCompareElement)}
             onEditDrawing={() => setDrawingToEdit(selectedElements[0] as DrawingElement)}
             onDownload={downloadImageElement}
             onAIGenerate={handleAIGenerate}
@@ -2706,7 +2857,6 @@ ${userPrompt}
       <ShortcutHints />
       {/* File Inputs */}
       <input type="file" ref={fileInputRef} onChange={e => handleFileUploads(e.target.files)} className="hidden" accept="image/*" multiple />
-      {/* FIX: Use spread attributes to allow non-standard directory and webkitdirectory attributes for folder upload. */}
       <input type="file" ref={musicUploadRefForLink} onChange={e => { handleRelinkFolderSelect(e.target.files); e.target.value = ''; }} className="hidden" multiple {...{ webkitdirectory: "", directory: "" }} />
 
       {/* Overlays and Modals */}
@@ -2751,10 +2901,11 @@ ${userPrompt}
           updateElements([{ id: drawingToEdit.id, data: { src } }]);
           setDrawingToEdit(null);
       }} onClose={() => setDrawingToEdit(null)} initialDrawing={drawingToEdit.src} />}
-      {croppingElement && <CroppingModal element={croppingElement} onClose={() => setCroppingElement(null)} onSave={(src, width, height) => {
-        updateElements([{ id: croppingElement.id, data: { src, intrinsicWidth: width, intrinsicHeight: height, width, height } }]);
-        setCroppingElement(null);
+      {outpaintingElement && <OutpaintingModal element={outpaintingElement} onClose={() => setOutpaintingElement(null)} onGenerate={(element, croppedAreaPixels, aspectRatio, prompt) => {
+          handleAIOutpaint(element, croppedAreaPixels, aspectRatio, prompt);
+          setOutpaintingElement(null);
       }} />}
+      {inpaintingElement && <InpaintingModal element={inpaintingElement} onClose={() => setInpaintingElement(null)} onGenerate={handleInpaintGenerate} />}
       {isTakingPhoto && (
         <CameraModal
             onClose={() => { setIsTakingPhoto(false); setPlaceholderTarget(null); setImageCompareTarget(null); }}

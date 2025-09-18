@@ -1,5 +1,5 @@
 {
-  "name": "鳥巢AI創意畫布 v0.5.5",
+  "name": "鳥巢AI創意畫布 v0.6",
   "description": "Inpaint/Outpaint，改圖指南優化，一個支援 AI 功能的無限畫布，可用於腦力激盪、協作和創意發想。",
   "requestFramePermissions": [
     "camera"

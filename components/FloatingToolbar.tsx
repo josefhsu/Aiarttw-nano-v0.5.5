@@ -1,9 +1,9 @@
 
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Trash2, Copy, Crop, Edit, Wand2, Lightbulb, ArrowUpToLine, ArrowDownToLine, Group, Lock, Unlock, Minus, Plus, Sparkles, Download, Expand, Camera, ClipboardPaste, Eraser, ClipboardCopy, GitCompare, AlignHorizontalSpaceAround, Unlink } from 'lucide-react';
+import { Trash2, Copy, Crop, Edit, Wand2, Lightbulb, ArrowUpToLine, ArrowDownToLine, Group, Lock, Unlock, Minus, Plus, Sparkles, Download, Expand, Camera, ClipboardPaste, Eraser, ClipboardCopy, GitCompare, AlignHorizontalSpaceAround, Unlink, Brush } from 'lucide-react';
 import { AdvancedColorPicker } from './ColorPicker';
-import type { CanvasElement, NoteElement, ImageElement, DrawingElement, Viewport, ArrowElement, Point } from '../types';
+import type { CanvasElement, NoteElement, ImageElement, DrawingElement, Viewport, ArrowElement, Point, ImageCompareElement } from '../types';
 import { getElementsBounds } from '../utils';
 import { ART_STYLES, ASPECT_RATIO_OPTIONS } from '../constants';
 
@@ -31,7 +31,8 @@ interface FloatingToolbarProps {
   onSendToBack: () => void;
   onUpdateElements: (updates: { id: string, data: Partial<CanvasElement> }[], addToHistory?: boolean) => void;
   onCommitHistory: (updates: { id: string, data: Partial<CanvasElement> }[]) => void;
-  onCrop: () => void;
+  onOutpaint: () => void;
+  onInpaint: () => void;
   onEditDrawing: () => void;
   onDownload: (elementId: string) => void;
   onAIGenerate: (elementId: string) => void;
@@ -64,7 +65,7 @@ const IconButton: React.FC<IconButtonProps> =
 );
 
 export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ 
-    elements, selectedElements, viewport, prompts, onPromptsChange, aspectRatios, onAspectRatiosChange, artStyles, onArtStylesChange, onDelete, onDuplicate, onBringToFront, onSendToBack, onUpdateElements, onCommitHistory, onCrop, onEditDrawing, onDownload, onAIGenerate, onAIZoomOut, onAIGroupGenerate, onRequestInspiration, onRequestGroupInspiration, onOptimizeGroupPrompt, onOptimizeSingleElementPrompt, onNoteInspiration, onNoteOptimization, onNoteGenerate, onCreateComparison, onConvertToComparison, onUnpackComparison, isGenerating, onStartConnection, onToggleGroupLock, lockedGroupIds, onClearConnections, onFillPlaceholderFromCamera, onFillPlaceholderFromPaste
+    elements, selectedElements, viewport, prompts, onPromptsChange, aspectRatios, onAspectRatiosChange, artStyles, onArtStylesChange, onDelete, onDuplicate, onBringToFront, onSendToBack, onUpdateElements, onCommitHistory, onOutpaint, onInpaint, onEditDrawing, onDownload, onAIGenerate, onAIZoomOut, onAIGroupGenerate, onRequestInspiration, onRequestGroupInspiration, onOptimizeGroupPrompt, onOptimizeSingleElementPrompt, onNoteInspiration, onNoteOptimization, onNoteGenerate, onCreateComparison, onConvertToComparison, onUnpackComparison, isGenerating, onStartConnection, onToggleGroupLock, lockedGroupIds, onClearConnections, onFillPlaceholderFromCamera, onFillPlaceholderFromPaste
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [manualTextareaHeight, setManualTextareaHeight] = useState<number | null>(null);
@@ -186,6 +187,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   const isPlaceholder = element?.type === 'placeholder';
   const isImageCompare = element?.type === 'imageCompare';
   const canEditAI = isImage || isDrawing;
+  const canInpaint = isImage || isDrawing || (isImageCompare && (element as ImageCompareElement).wasInpainted);
   
   const getBoundsStyle = (): React.CSSProperties => {
     const bounds = getElementsBounds(selectedElements);
@@ -345,7 +347,8 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                     {(isImage || isDrawing) && <IconButton title="建立比較" onClick={() => element && onConvertToComparison(element.id)}><GitCompare size={18} /></IconButton>}
                     {isImageCompare && <IconButton title="解開比較" onClick={() => element && onUnpackComparison(element.id)}><Unlink size={18} /></IconButton>}
                     {(isImage || isDrawing) && <IconButton title="AI 擴展 (Zoom Out)" onClick={() => element && onAIZoomOut(element.id)}><Expand size={18} /></IconButton>}
-                    {isImage && <IconButton title="裁切 (Alt+C)" onClick={onCrop}><Crop size={18} /></IconButton>}
+                    {canInpaint && <IconButton title="Inpaint" onClick={onInpaint}><Brush size={18} /></IconButton>}
+                    {(isImage || isDrawing) && <IconButton title="Outpaint / Crop (Alt+C)" onClick={onOutpaint}><Crop size={18} /></IconButton>}
                     {isDrawing && <IconButton title="編輯繪圖 (Alt+E)" onClick={onEditDrawing}><Edit size={18} /></IconButton>}
                     {canCompare && (
                       <div className="flex items-center gap-1 p-1 rounded-md compare-feature-glow ml-2">

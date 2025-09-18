@@ -1,6 +1,5 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-// FIX: Changed to a named import to match the export from App.tsx.
 import { App } from './App';
 
 const rootElement = document.getElementById('root');
